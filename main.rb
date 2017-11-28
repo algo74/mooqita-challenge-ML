@@ -2,6 +2,7 @@
 
 # some requirements
 require 'set'
+require 'ruby-prof'
 load 'neuro.rb'
 
 # We will use the iris data set based which contains observations of
@@ -40,37 +41,69 @@ end
 
 # number of elements per class in the training set.
 n_train = 25
+n_tries=1
+n_epoches=2000
+accs=[]
 
-d1 = (0..49).to_a.sample(n_train)
-d2 = (50..99).to_a.sample(n_train)
-d3 = (100..149).to_a.sample(n_train)
+n_tries.times do
 
-# samples we want in the train set.
-train_samples = (d1 + d2 + d3).to_set
+    d1 = (0..49).to_a.sample(n_train)
+    d2 = (50..99).to_a.sample(n_train)
+    d3 = (100..149).to_a.sample(n_train)
 
-# samples we want in the test set are
-# those not in the training set.
-test_samples = (0..149).to_set - train_samples
+    # samples we want in the train set.
+    train_samples = (d1 + d2 + d3).to_set
 
-x_train = Matrix.rows(x.values_at(*train_samples))
-y_train = Matrix.rows(y.values_at(*train_samples))
+    # samples we want in the test set are
+    # those not in the training set.
+    test_samples = (0..149).to_set - train_samples
 
-x_test = Matrix.rows(x.values_at(*test_samples))
-y_test = Matrix.rows(y.values_at(*test_samples))
+    x_train = Matrix.rows(x.values_at(*train_samples))
+    y_train = Matrix.rows(y.values_at(*train_samples))
 
-# creates a new neural network
-nn = NeuralNetwork.new(x_test.column_count,y_test.column_count)
+    x_test = Matrix.rows(x.values_at(*test_samples))
+    y_test = Matrix.rows(y.values_at(*test_samples))
 
-# trains the network with the training set
-# and predicts the classes of the unseen
-# test data
-nn.train(x_train, y_train)
-y_hat = nn.predict(x_test)
+    # creates a new neural network
+    nn = NeuralNetwork.new(x_test.column_count,y_test.column_count,[5,5],0.002, 0.002)
 
-# prints the networks "accuracy" in predicting
-# the unseen test set.
-cm = confusion_matrix(y_test, y_hat)
-p "Confusion Matrix:"
-p cm.to_s
-p "Accuracy: " + accuracy(cm).to_s
+    # trains the network with the training set
+    # and predicts the classes of the unseen
+    # test data
 
+  starttime=Time.now
+  #RubyProf.start
+
+      n_epoches.times do
+        nn.train(x_train, y_train)
+      end
+
+  #result = RubyProf.stop
+  puts Time.now-starttime
+
+
+    # print a flat profile to text
+    # printer = RubyProf::GraphPrinter.new(result)
+    # printer.print(STDOUT, {})
+
+  y_hat = nn.predict(x_test)
+  cm = confusion_matrix(y_test, y_hat)
+  acc = accuracy(cm)
+  accs<<=acc
+  # prints the networks "accuracy" in predicting
+  # the unseen test set.
+  p cm.to_s
+  p "Accuracy: " + acc.to_s
+end
+
+mean_acc=accs.reduce(:+)/n_tries
+sd_acc=(accs.inject(0) { |a| (a-mean_acc)**2})/(n_tries-1)
+
+puts "   --- results   ---"
+puts "Mean: #{mean_acc}, SD: #{Math.sqrt(sd_acc)}"
+
+File.open("results", 'w') do |file|
+    file.write(" \n")
+    file.write("   --- results   ---\n")
+    file.write("Mean: #{mean_acc}, SD: #{Math.sqrt(sd_acc)}\n")
+end
